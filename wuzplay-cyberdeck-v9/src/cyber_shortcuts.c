@@ -17,7 +17,6 @@
 static uint8_t m_keys[SHORTCUT_BUFFER_SIZE];
 static uint8_t m_key_count = 0;
 static bool m_initialized = false;
-static ntag_t m_shortcut_tag;
 static mui_toast_view_t *m_toast = NULL;
 static mui_view_dispatcher_t *m_toast_dispatcher = NULL;
 
@@ -51,26 +50,32 @@ static void set_uri_tag(const char *label, const char *url) {
     size_t url_len = strlen(url);
     if (url_len > 240) url_len = 240;
 
-    memset(&m_shortcut_tag, 0, sizeof(m_shortcut_tag));
-    memcpy(m_shortcut_tag.data, k_ntag_header, sizeof(k_ntag_header));
+    /* Reuse the emulator's existing tag buffer instead of allocating another
+       2 KB NTAG structure in RAM. */
+    ntag_t *tag = ntag_emu_get_current_tag();
+    if (!tag) return;
+
+    memset(tag->data, 0, NTAG_DATA_SIZE);
+    memset(tag->notes, 0, sizeof(tag->notes));
+    memcpy(tag->data, k_ntag_header, sizeof(k_ntag_header));
 
     /* NFC Forum Type 2 TLV containing one URI NDEF record. */
     size_t p = 16;
-    m_shortcut_tag.data[p++] = 0x03;
-    m_shortcut_tag.data[p++] = (uint8_t)(url_len + 5);
-    m_shortcut_tag.data[p++] = 0xd1;
-    m_shortcut_tag.data[p++] = 0x01;
-    m_shortcut_tag.data[p++] = (uint8_t)(url_len + 1);
-    m_shortcut_tag.data[p++] = 0x55;
-    m_shortcut_tag.data[p++] = 0x00;
-    memcpy(&m_shortcut_tag.data[p], url, url_len);
+    tag->data[p++] = 0x03;
+    tag->data[p++] = (uint8_t)(url_len + 5);
+    tag->data[p++] = 0xd1;
+    tag->data[p++] = 0x01;
+    tag->data[p++] = (uint8_t)(url_len + 1);
+    tag->data[p++] = 0x55;
+    tag->data[p++] = 0x00;
+    memcpy(&tag->data[p], url, url_len);
     p += url_len;
-    m_shortcut_tag.data[p] = 0xfe;
+    tag->data[p] = 0xfe;
 
-    strncpy((char *)m_shortcut_tag.notes, label, sizeof(m_shortcut_tag.notes) - 1);
-    m_shortcut_tag.read_only = false;
-    m_shortcut_tag.type = NTAG_215;
-    ntag_emu_set_tag(&m_shortcut_tag);
+    strncpy((char *)tag->notes, label, sizeof(tag->notes) - 1);
+    tag->read_only = false;
+    tag->type = NTAG_215;
+    ntag_emu_set_tag(tag);
 
     if (m_toast) mui_toast_view_show(m_toast, label);
 }
