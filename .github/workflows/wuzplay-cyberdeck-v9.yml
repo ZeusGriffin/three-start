@@ -6,6 +6,8 @@ on:
     paths:
       - ".github/workflows/wuzplay-cyberdeck-v9.yml"
       - "wuzplay-cyberdeck-v9/**"
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
