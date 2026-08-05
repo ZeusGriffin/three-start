@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#111312">
+<title>Meditation Cyber</title>
+<style>
+:root{--mx:0;--my:0;--fade:1}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#111312;color:#eceeea}
+body{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}
+.stage{position:fixed;inset:0;isolation:isolate;opacity:var(--fade);transition:opacity 2.6s ease}
+.stone,.mist,.grain,.shade{position:absolute;inset:-12%;pointer-events:none}
+.stone{
+ background:
+ radial-gradient(ellipse at 27% 22%,rgba(210,214,207,.10),transparent 34%),
+ radial-gradient(ellipse at 72% 64%,rgba(160,166,160,.11),transparent 38%),
+ linear-gradient(145deg,#242725 0%,#161817 44%,#30332f 100%);
+ transform:translate3d(calc(var(--mx)*-7px),calc(var(--my)*-7px),0) scale(1.08);
+ filter:contrast(1.07) saturate(.35);
+}
+.stone:after{content:"";position:absolute;inset:0;opacity:.14;background:
+ repeating-radial-gradient(ellipse at 40% 45%,transparent 0 8px,rgba(255,255,255,.025) 9px 10px,transparent 11px 18px)}
+.mist{inset:-25%;filter:blur(34px);mix-blend-mode:screen;opacity:.30;
+ background:
+ radial-gradient(ellipse at 15% 40%,rgba(205,211,205,.20),transparent 30%),
+ radial-gradient(ellipse at 82% 24%,rgba(182,189,184,.16),transparent 28%),
+ radial-gradient(ellipse at 63% 82%,rgba(225,229,224,.10),transparent 32%);
+ animation:drift 15s ease-in-out infinite alternate;
+ transform:translate3d(calc(var(--mx)*13px),calc(var(--my)*13px),0)
+}
+.grain{inset:0;opacity:.16;mix-blend-mode:soft-light;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E")}
+.shade{inset:0;background:radial-gradient(circle at 50% 45%,transparent 5%,rgba(0,0,0,.16) 55%,rgba(0,0,0,.72) 120%)}
+.quote{position:absolute;max-width:min(78vw,640px);font-weight:760;letter-spacing:.025em;line-height:1.17;
+ font-size:clamp(22px,7vw,52px);text-wrap:balance;text-shadow:0 2px 18px rgba(0,0,0,.75);
+ opacity:0;filter:blur(10px);transform:translate3d(0,18px,0);transition:opacity 2.4s ease,filter 3.3s ease,transform 3.3s cubic-bezier(.16,1,.3,1)}
+.quote.show{opacity:.94;filter:blur(0);transform:none}
+.quote.one{left:8vw;top:17vh}
+.quote.two{right:7vw;bottom:20vh;text-align:right;max-width:min(70vw,560px);font-size:clamp(18px,5.8vw,42px)}
+.sig{position:absolute;left:9vw;bottom:8vh;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:rgba(235,238,232,.40);opacity:0;transition:opacity 2s ease}
+.sig.show{opacity:1}
+.cursor{display:inline-block;width:.55em;height:.08em;margin-left:.12em;background:currentColor;vertical-align:.18em;animation:blink 1.5s steps(1) infinite}
+.tap{position:absolute;inset:0;z-index:5;opacity:0}
+@keyframes drift{0%{transform:translate3d(-3%,1%,0) scale(1.03)}100%{transform:translate3d(4%,-2%,0) scale(1.12)}}
+@keyframes blink{50%{opacity:.1}}
+@media (prefers-reduced-motion:reduce){.mist{animation:none}.quote{transition:opacity .4s ease;filter:none;transform:none}}
+</style>
+</head>
+<body>
+<main class="stage" id="stage" aria-live="polite">
+  <div class="stone"></div><div class="mist"></div><div class="grain"></div><div class="shade"></div>
+  <section class="quote one" id="q1"></section>
+  <section class="quote two" id="q2"></section>
+  <div class="sig" id="sig"></div>
+  <button class="tap" id="tap" aria-label="Show another meditation"></button>
+</main>
+<script>
+const meditations=[
+ {a:"Guard the space between",b:"what happens—and what you become.",s:"after Marcus Aurelius"},
+ {a:"You do not own tomorrow.",b:"Use this hour without bargaining with it.",s:"after Seneca"},
+ {a:"A calm mind is not empty.",b:"It has simply stopped obeying every noise.",s:"Stoic meditation"},
+ {a:"The obstacle does not ask permission.",b:"Neither must your response.",s:"after Marcus Aurelius"},
+ {a:"Most fear is rehearsal.",b:"Return to the scene that is actually happening.",s:"after Seneca"},
+ {a:"Let another person keep their opinion.",b:"You keep your character.",s:"Stoic meditation"},
+ {a:"What is outside your command",b:"does not deserve command of your peace.",s:"after Epictetus"},
+ {a:"Do the next honorable thing.",b:"Then release the need to be seen doing it.",s:"Stoic meditation"},
+ {a:"Time is not merely passing.",b:"It is being exchanged for the life you choose.",s:"after Seneca"},
+ {a:"Your mind colors the room.",b:"Choose the light before blaming the walls.",s:"after Marcus Aurelius"},
+ {a:"You can be firm without becoming stone.",b:"Strength still knows how to bend.",s:"Stoic meditation"},
+ {a:"Do not demand an easier road.",b:"Become difficult to move from what is right.",s:"Stoic meditation"},
+ {a:"A small disciplined act",b:"outlives a large intention.",s:"Stoic meditation"},
+ {a:"Anger promises power.",b:"Usually it only rents your judgment.",s:"after Seneca"},
+ {a:"The day needs no grand speech.",b:"Only your full presence.",s:"Stoic meditation"},
+ {a:"You are not required to carry",b:"every thought that enters.",s:"Stoic meditation"},
+ {a:"Fortune changes the weather.",b:"Character decides whether you abandon the course.",s:"after Seneca"},
+ {a:"Before answering the world,",b:"make sure the answer belongs to you.",s:"Stoic meditation"},
+ {a:"The present is narrow.",b:"That is why it can be held.",s:"after Marcus Aurelius"},
+ {a:"Peace is practiced",b:"in the moment you could have chosen reaction.",s:"Stoic meditation"}
+];
+const stage=document.getElementById('stage'),q1=document.getElementById('q1'),q2=document.getElementById('q2'),sig=document.getElementById('sig');
+let timer=0,last=-1;
+function pick(){let i;do{i=Math.floor(Math.random()*meditations.length)}while(i===last&&meditations.length>1);last=i;return meditations[i]}
+function run(){
+ clearTimeout(timer);stage.style.setProperty('--fade','0');q1.classList.remove('show');q2.classList.remove('show');sig.classList.remove('show');
+ const m=pick();
+ setTimeout(()=>{
+   q1.innerHTML=m.a+'<span class="cursor"></span>'; q2.textContent=m.b; sig.textContent=m.s;
+   stage.style.setProperty('--fade','1');
+   setTimeout(()=>q1.classList.add('show'),400);
+   setTimeout(()=>q2.classList.add('show'),4200);
+   setTimeout(()=>sig.classList.add('show'),7200);
+   timer=setTimeout(()=>{stage.style.setProperty('--fade','0');q1.classList.remove('show');q2.classList.remove('show');sig.classList.remove('show')},15000);
+ },350)
+}
+function motion(x,y){document.documentElement.style.setProperty('--mx',x);document.documentElement.style.setProperty('--my',y)}
+addEventListener('pointermove',e=>motion((e.clientX/innerWidth-.5)*2,(e.clientY/innerHeight-.5)*2),{passive:true});
+addEventListener('deviceorientation',e=>motion(Math.max(-1,Math.min(1,(e.gamma||0)/25)),Math.max(-1,Math.min(1,(e.beta||0)/35))),{passive:true});
+document.getElementById('tap').addEventListener('click',run);
+run();
+</script>
+</body>
+</html>
