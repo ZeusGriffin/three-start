@@ -3,21 +3,24 @@ name: Build Wuzplay Cyberdeck v9
 on:
   push:
     branches: ["wuzplay-cyberdeck-v9"]
-  pull_request:
-    branches: ["main"]
+    paths:
+      - ".github/workflows/wuzplay-cyberdeck-v9.yml"
+      - "wuzplay-cyberdeck-v9/**"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build-lcd-dfu:
     runs-on: ubuntu-latest
     container: solosky/nrf52-sdk:latest
-    steps:
-      - name: Checkout custom build files
-        uses: actions/checkout@v4
-        with:
-          submodules: false
 
-      - name: Clone upstream firmware
+    steps:
+      - name: Check out build recipe
+        uses: actions/checkout@v4
+
+      - name: Clone matching Pixl.js firmware source
         shell: bash
         run: |
           git clone https://github.com/solosky/pixl.js.git upstream
@@ -25,38 +28,54 @@ jobs:
           git checkout 5cc2b49
           git submodule update --init --recursive
 
-      - name: Apply Cyberdeck patches
-        run: python3 wuzplay-v9/build_patch.py upstream
+      - name: Apply Wuzplay Cyberdeck v9 patch
+        shell: bash
+        run: |
+          python3 wuzplay-cyberdeck-v9/apply_patch.py upstream
 
-      - name: Build LCD firmware and OTA DFU
+      - name: Build LCD firmware and Nordic DFU package
         shell: bash
         run: |
           cd upstream/fw
-          make all BOARD=LCD RELEASE=1 APP_VERSION=900
+          make all RELEASE=1 APP_VERSION=900 BOARD=LCD
 
-      - name: Verify and stage DFU
+      - name: Verify and stage installer
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p artifact
-          cp upstream/fw/_build/pixjs_ota_v900.zip artifact/Wuzplay_Cyberdeck_v9_DFU_KEEP_ZIPPED.zip
-          python3 - <<'PY'
-          import json, zipfile
-          p='artifact/Wuzplay_Cyberdeck_v9_DFU_KEEP_ZIPPED.zip'
-          with zipfile.ZipFile(p) as z:
-              assert z.testzip() is None
-              names=set(z.namelist())
-              assert 'manifest.json' in names
-              manifest=json.loads(z.read('manifest.json'))
-              app=manifest['manifest']['application']
-              assert app['bin_file'] in names
-              assert app['dat_file'] in names
-              print('DFU verified:', app)
-          PY
-          cp wuzplay-v9/README.md artifact/README_BUILD_AND_HARDWARE_NOTE.md
-          cp meditation-cyber/index.html artifact/Meditation_Cyber.html
+          cp upstream/fw/_build/pixjs_ota_v900.zip artifact/01_INSTALL_WUZPLAY_CYBERDECK_V9_DFU_KEEP_ZIPPED.zip
+          cp upstream/fw/_build/pixljs.hex artifact/pixljs_v9_application.hex
+          cp upstream/fw/_build/pixljs_all.hex artifact/pixljs_v9_full_factory.hex
+          cp wuzplay-cyberdeck-v9/BUILD_README.txt artifact/BUILD_README.txt
 
-      - name: Upload verified build artifact
+          python3 - <<'PY'
+          import hashlib, json, zipfile
+          from pathlib import Path
+
+          p = Path("artifact/01_INSTALL_WUZPLAY_CYBERDECK_V9_DFU_KEEP_ZIPPED.zip")
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None, "DFU ZIP is corrupt"
+              names = set(z.namelist())
+              assert "manifest.json" in names, names
+              manifest = json.loads(z.read("manifest.json"))
+              app = manifest["manifest"]["application"]
+              assert app["bin_file"] in names
+              assert app["dat_file"] in names
+              report = {
+                  "zip": p.name,
+                  "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
+                  "members": sorted(names),
+                  "manifest_application": app,
+                  "verification": "passed"
+              }
+          Path("artifact/DFU_VERIFICATION.json").write_text(json.dumps(report, indent=2))
+          PY
+
+      - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Wuzplay_Cyberdeck_v9_LCD
+          name: Wuzplay_Cyberdeck_v9_LCD_DFU
           path: artifact/
+          if-no-files-found: error
+          retention-days: 30
