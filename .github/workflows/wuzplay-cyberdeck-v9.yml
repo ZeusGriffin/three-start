@@ -1,0 +1,62 @@
+name: Build Wuzplay Cyberdeck v9
+
+on:
+  push:
+    branches: ["wuzplay-cyberdeck-v9"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build-lcd-dfu:
+    runs-on: ubuntu-latest
+    container: solosky/nrf52-sdk:latest
+    steps:
+      - name: Checkout custom build files
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Clone upstream firmware
+        shell: bash
+        run: |
+          git clone https://github.com/solosky/pixl.js.git upstream
+          cd upstream
+          git checkout 5cc2b49
+          git submodule update --init --recursive
+
+      - name: Apply Cyberdeck patches
+        run: python3 wuzplay-v9/build_patch.py upstream
+
+      - name: Build LCD firmware and OTA DFU
+        shell: bash
+        run: |
+          cd upstream/fw
+          make all BOARD=LCD RELEASE=1 APP_VERSION=900
+
+      - name: Verify and stage DFU
+        shell: bash
+        run: |
+          mkdir -p artifact
+          cp upstream/fw/_build/pixjs_ota_v900.zip artifact/Wuzplay_Cyberdeck_v9_DFU_KEEP_ZIPPED.zip
+          python3 - <<'PY'
+          import json, zipfile
+          p='artifact/Wuzplay_Cyberdeck_v9_DFU_KEEP_ZIPPED.zip'
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=set(z.namelist())
+              assert 'manifest.json' in names
+              manifest=json.loads(z.read('manifest.json'))
+              app=manifest['manifest']['application']
+              assert app['bin_file'] in names
+              assert app['dat_file'] in names
+              print('DFU verified:', app)
+          PY
+          cp wuzplay-v9/README.md artifact/README_BUILD_AND_HARDWARE_NOTE.md
+          cp meditation-cyber/index.html artifact/Meditation_Cyber.html
+
+      - name: Upload verified build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wuzplay_Cyberdeck_v9_LCD
+          path: artifact/
