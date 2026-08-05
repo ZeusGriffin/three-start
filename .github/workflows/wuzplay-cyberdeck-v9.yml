@@ -36,6 +36,18 @@ jobs:
           python3 wuzplay-cyberdeck-v9/apply_patch.py upstream
           cp wuzplay-cyberdeck-v9/src/cyber_games.h upstream/fw/application/src/app/game/scene/cyber_games.h
 
+          # Keep only the requested compact game set. The three removed upstream
+          # games pushed the nRF52 application beyond its flash and RAM limits.
+          sed -i '/#include "tiny_lander.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/#include "tiny_invaders.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/#include "tiny_tris.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/SPACE RAID/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/"LANDER"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/"BLOCKS"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/tiny_lander\/tiny_lander.c/d' upstream/fw/application/Makefile
+          sed -i '/tiny_invaders\/tiny_invaders.c/d' upstream/fw/application/Makefile
+          sed -i '/tiny_tris\/tiny_tris.c/d' upstream/fw/application/Makefile
+
       - name: Build LCD firmware and Nordic DFU package
         shell: bash
         run: |
