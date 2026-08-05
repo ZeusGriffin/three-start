@@ -9,13 +9,16 @@
 #include "mui_include.h"
 #include "mui_toast_view.h"
 #include "ntag_emu.h"
+#include "utils2.h"
 
-#define SHORTCUT_WINDOW_MS 900
+#define SHORTCUT_WINDOW_MS 1200
 #define SHORTCUT_BUFFER_SIZE 8
+#define DFU_BACK_PRESS_COUNT 15
 #define TOAST_VIEW_ID 0
 
 static uint8_t m_keys[SHORTCUT_BUFFER_SIZE];
 static uint8_t m_key_count = 0;
+static uint8_t m_dfu_back_count = 0;
 static bool m_initialized = false;
 static mui_toast_view_t *m_toast = NULL;
 static mui_view_dispatcher_t *m_toast_dispatcher = NULL;
@@ -27,14 +30,19 @@ static const uint8_t k_ntag_header[16] = {
     0xcc, 0x48, 0x00, 0x00, 0xe1, 0x10, 0x3e, 0x00
 };
 
+static void reset_shortcut_pattern(void) {
+    memset(m_keys, 0, sizeof(m_keys));
+    m_key_count = 0;
+}
+
 static void shortcut_timer_handler(void *context) {
     (void)context;
     cyber_shortcuts_reset();
 }
 
 void cyber_shortcuts_reset(void) {
-    memset(m_keys, 0, sizeof(m_keys));
-    m_key_count = 0;
+    reset_shortcut_pattern();
+    m_dfu_back_count = 0;
 }
 
 static bool suffix_matches(const uint8_t *pattern, uint8_t pattern_len) {
@@ -112,17 +120,14 @@ void cyber_shortcuts_init(void) {
 bool cyber_shortcuts_feed(uint8_t key) {
     if (!m_initialized) cyber_shortcuts_init();
 
-    /* Multi-press shortcuts only run from Home so normal app controls remain safe. */
-    if (!current_app_is_desktop()) {
-        cyber_shortcuts_reset();
-        return false;
+    /* Permanent recovery escape: fifteen consecutive Back presses are counted
+       globally, even while an app or game is open. Any different key or a pause
+       longer than the shortcut window resets the count. */
+    if (key == INPUT_KEY_BACK) {
+        if (m_dfu_back_count < DFU_BACK_PRESS_COUNT) m_dfu_back_count++;
+    } else {
+        m_dfu_back_count = 0;
     }
-
-    if (m_key_count >= SHORTCUT_BUFFER_SIZE) {
-        memmove(m_keys, m_keys + 1, SHORTCUT_BUFFER_SIZE - 1);
-        m_key_count = SHORTCUT_BUFFER_SIZE - 1;
-    }
-    m_keys[m_key_count++] = key;
 
     app_timer_stop(m_shortcut_reset_timer);
     ret_code_t err = app_timer_start(
@@ -131,6 +136,24 @@ bool cyber_shortcuts_feed(uint8_t key) {
         NULL
     );
     APP_ERROR_CHECK(err);
+
+    if (m_dfu_back_count >= DFU_BACK_PRESS_COUNT) {
+        /* enter_dfu writes the Nordic bootloader flag and resets immediately. */
+        enter_dfu();
+        return true;
+    }
+
+    /* Phone-action patterns only run from Home so normal app controls remain safe. */
+    if (!current_app_is_desktop()) {
+        reset_shortcut_pattern();
+        return false;
+    }
+
+    if (m_key_count >= SHORTCUT_BUFFER_SIZE) {
+        memmove(m_keys, m_keys + 1, SHORTCUT_BUFFER_SIZE - 1);
+        m_key_count = SHORTCUT_BUFFER_SIZE - 1;
+    }
+    m_keys[m_key_count++] = key;
 
     static const uint8_t meditation[] = {
         INPUT_KEY_BACK, INPUT_KEY_RIGHT, INPUT_KEY_BACK, INPUT_KEY_BACK
@@ -151,7 +174,7 @@ bool cyber_shortcuts_feed(uint8_t key) {
             "MEDITATION READY\nTAP PHONE",
             "scriptable:///run/Meditation%20Cyber"
         );
-        cyber_shortcuts_reset();
+        reset_shortcut_pattern();
         return true;
     }
 
@@ -160,7 +183,8 @@ bool cyber_shortcuts_feed(uint8_t key) {
             "GOVEE READY\nTAP PHONE",
             "shortcuts://run-shortcut?name=Govee%20On"
         );
-        cyber_shortcuts_reset();
+        /* Preserve the emergency Back count so continuing to 15 still enters DFU. */
+        reset_shortcut_pattern();
         return true;
     }
 
@@ -169,7 +193,7 @@ bool cyber_shortcuts_feed(uint8_t key) {
             "FIND CAR READY\nTAP PHONE",
             "shortcuts://run-shortcut?name=Find%20My%20Car"
         );
-        cyber_shortcuts_reset();
+        reset_shortcut_pattern();
         return true;
     }
 
@@ -178,7 +202,7 @@ bool cyber_shortcuts_feed(uint8_t key) {
             "FLASHLIGHT READY\nTAP PHONE",
             "shortcuts://run-shortcut?name=Flashlight"
         );
-        cyber_shortcuts_reset();
+        reset_shortcut_pattern();
         return true;
     }
 
