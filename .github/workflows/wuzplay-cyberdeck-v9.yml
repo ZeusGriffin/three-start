@@ -34,6 +34,7 @@ jobs:
         shell: bash
         run: |
           python3 wuzplay-cyberdeck-v9/apply_patch.py upstream
+          cp wuzplay-cyberdeck-v9/src/cyber_games.h upstream/fw/application/src/app/game/scene/cyber_games.h
 
       - name: Build LCD firmware and Nordic DFU package
         shell: bash
