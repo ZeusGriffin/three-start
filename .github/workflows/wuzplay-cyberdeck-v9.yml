@@ -39,6 +39,10 @@ jobs:
           cp wuzplay-cyberdeck-v9/src/cyber_breakout.h upstream/fw/application/src/app/game/port/common/cyber_breakout.h
           cp wuzplay-cyberdeck-v9/src/cyber_breakout.c upstream/fw/application/src/app/game/port/common/cyber_breakout.c
 
+          # Keep the core NFC card emulator/tag functions. Remove the large built-in
+          # Amiibo database browser so the requested games fit in the nRF52 flash.
+          sed -i '/&app_amiidb_info,/d' upstream/fw/application/src/core/mini_app_data.c
+
           # Keep only the compact requested game set. The imported upstream games
           # exceed this nRF52 target's flash/RAM budget.
           sed -i '/#include "tiny_lander.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
