@@ -2,121 +2,51 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "../common/driver.h"
+#include "mui_core.h"
+#include "u8g2.h"
 
 #define CG_W 128
 #define CG_H 64
 
-static uint8_t fb[CG_W * CG_H / 8];
+extern const uint8_t u8g2_font_likeminecraft_te[];
 
-static const uint8_t *cg_glyph(char c) {
-    switch (c) {
-    case ' ': { static const uint8_t g[5] = {0x0,0x0,0x0,0x0,0x0}; return g; }
-    case '!': { static const uint8_t g[5] = {0x0,0x0,0x5f,0x0,0x0}; return g; }
-    case '-': { static const uint8_t g[5] = {0x8,0x8,0x8,0x8,0x8}; return g; }
-    case ':': { static const uint8_t g[5] = {0x0,0x36,0x36,0x0,0x0}; return g; }
-    case '.': { static const uint8_t g[5] = {0x0,0x60,0x60,0x0,0x0}; return g; }
-    case '/': { static const uint8_t g[5] = {0x20,0x10,0x8,0x4,0x2}; return g; }
-    case '0': { static const uint8_t g[5] = {0x3e,0x51,0x49,0x45,0x3e}; return g; }
-    case '1': { static const uint8_t g[5] = {0x0,0x42,0x7f,0x40,0x0}; return g; }
-    case '2': { static const uint8_t g[5] = {0x42,0x61,0x51,0x49,0x46}; return g; }
-    case '3': { static const uint8_t g[5] = {0x21,0x41,0x45,0x4b,0x31}; return g; }
-    case '4': { static const uint8_t g[5] = {0x18,0x14,0x12,0x7f,0x10}; return g; }
-    case '5': { static const uint8_t g[5] = {0x27,0x45,0x45,0x45,0x39}; return g; }
-    case '6': { static const uint8_t g[5] = {0x3c,0x4a,0x49,0x49,0x30}; return g; }
-    case '7': { static const uint8_t g[5] = {0x1,0x71,0x9,0x5,0x3}; return g; }
-    case '8': { static const uint8_t g[5] = {0x36,0x49,0x49,0x49,0x36}; return g; }
-    case '9': { static const uint8_t g[5] = {0x6,0x49,0x49,0x29,0x1e}; return g; }
-    case 'A': { static const uint8_t g[5] = {0x7e,0x11,0x11,0x11,0x7e}; return g; }
-    case 'B': { static const uint8_t g[5] = {0x7f,0x49,0x49,0x49,0x36}; return g; }
-    case 'C': { static const uint8_t g[5] = {0x3e,0x41,0x41,0x41,0x22}; return g; }
-    case 'D': { static const uint8_t g[5] = {0x7f,0x41,0x41,0x22,0x1c}; return g; }
-    case 'E': { static const uint8_t g[5] = {0x7f,0x49,0x49,0x49,0x41}; return g; }
-    case 'F': { static const uint8_t g[5] = {0x7f,0x9,0x9,0x9,0x1}; return g; }
-    case 'G': { static const uint8_t g[5] = {0x3e,0x41,0x49,0x49,0x7a}; return g; }
-    case 'H': { static const uint8_t g[5] = {0x7f,0x8,0x8,0x8,0x7f}; return g; }
-    case 'I': { static const uint8_t g[5] = {0x0,0x41,0x7f,0x41,0x0}; return g; }
-    case 'J': { static const uint8_t g[5] = {0x20,0x40,0x41,0x3f,0x1}; return g; }
-    case 'K': { static const uint8_t g[5] = {0x7f,0x8,0x14,0x22,0x41}; return g; }
-    case 'L': { static const uint8_t g[5] = {0x7f,0x40,0x40,0x40,0x40}; return g; }
-    case 'M': { static const uint8_t g[5] = {0x7f,0x2,0xc,0x2,0x7f}; return g; }
-    case 'N': { static const uint8_t g[5] = {0x7f,0x4,0x8,0x10,0x7f}; return g; }
-    case 'O': { static const uint8_t g[5] = {0x3e,0x41,0x41,0x41,0x3e}; return g; }
-    case 'P': { static const uint8_t g[5] = {0x7f,0x9,0x9,0x9,0x6}; return g; }
-    case 'Q': { static const uint8_t g[5] = {0x3e,0x41,0x51,0x21,0x5e}; return g; }
-    case 'R': { static const uint8_t g[5] = {0x7f,0x9,0x19,0x29,0x46}; return g; }
-    case 'S': { static const uint8_t g[5] = {0x46,0x49,0x49,0x49,0x31}; return g; }
-    case 'T': { static const uint8_t g[5] = {0x1,0x1,0x7f,0x1,0x1}; return g; }
-    case 'U': { static const uint8_t g[5] = {0x3f,0x40,0x40,0x40,0x3f}; return g; }
-    case 'V': { static const uint8_t g[5] = {0x1f,0x20,0x40,0x20,0x1f}; return g; }
-    case 'W': { static const uint8_t g[5] = {0x3f,0x40,0x38,0x40,0x3f}; return g; }
-    case 'X': { static const uint8_t g[5] = {0x63,0x14,0x8,0x14,0x63}; return g; }
-    case 'Y': { static const uint8_t g[5] = {0x7,0x8,0x70,0x8,0x7}; return g; }
-    case 'Z': { static const uint8_t g[5] = {0x61,0x51,0x49,0x45,0x43}; return g; }
-    default: { static const uint8_t g[5] = {0,0,0,0,0}; return g; }
-    }
+static u8g2_t *cg_u8(void) { return &(mui()->u8g2); }
+
+static void cg_clear(void) {
+    u8g2_ClearBuffer(cg_u8());
+    u8g2_SetDrawColor(cg_u8(), 1);
 }
-
-static void cg_clear(void) { memset(fb, 0, sizeof(fb)); }
 
 static void cg_pixel(int x, int y, bool on) {
     if (x < 0 || x >= CG_W || y < 0 || y >= CG_H) return;
-    uint16_t i = (uint16_t)(y >> 3) * CG_W + (uint16_t)x;
-    uint8_t bit = 1u << (y & 7);
-    if (on) fb[i] |= bit;
-    else fb[i] &= (uint8_t)~bit;
+    u8g2_SetDrawColor(cg_u8(), on ? 1 : 0);
+    u8g2_DrawPixel(cg_u8(), x, y);
+    u8g2_SetDrawColor(cg_u8(), 1);
 }
 
 static void cg_box(int x, int y, int w, int h, bool fill) {
-    for (int yy = 0; yy < h; yy++) {
-        for (int xx = 0; xx < w; xx++) {
-            if (fill || xx == 0 || yy == 0 || xx == w - 1 || yy == h - 1)
-                cg_pixel(x + xx, y + yy, true);
-        }
-    }
-}
-
-static void cg_char(int x, int y, char c, int scale) {
-    const uint8_t *g = cg_glyph(c);
-    for (int col = 0; col < 5; col++) {
-        for (int row = 0; row < 7; row++) {
-            if (g[col] & (1u << row)) {
-                for (int sx = 0; sx < scale; sx++)
-                    for (int sy = 0; sy < scale; sy++)
-                        cg_pixel(x + col * scale + sx, y + row * scale + sy, true);
-            }
-        }
-    }
+    if (fill) u8g2_DrawBox(cg_u8(), x, y, w, h);
+    else u8g2_DrawFrame(cg_u8(), x, y, w, h);
 }
 
 static void cg_text(int x, int y, const char *s, int scale) {
-    while (*s) {
-        cg_char(x, y, *s++, scale);
-        x += 6 * scale;
-    }
+    (void)scale;
+    u8g2_SetFont(cg_u8(), u8g2_font_likeminecraft_te);
+    u8g2_DrawStr(cg_u8(), x, y + 8, s);
 }
 
 static void cg_text_center(int y, const char *s, int scale) {
-    int w = (int)strlen(s) * 6 * scale;
-    cg_text((CG_W - w) / 2, y, s, scale);
+    (void)scale;
+    u8g2_SetFont(cg_u8(), u8g2_font_likeminecraft_te);
+    int w = u8g2_GetStrWidth(cg_u8(), s);
+    u8g2_DrawStr(cg_u8(), (CG_W - w) / 2, y + 8, s);
 }
 
-static void cg_present(void) {
-    for (uint8_t page = 0; page < 8; page++) {
-        JOY_OLED_data_start(page);
-        for (uint8_t x = 0; x < CG_W; x++) {
-            JOY_OLED_send(fb[(uint16_t)page * CG_W + x]);
-        }
-        JOY_OLED_end();
-    }
-}
-
-static bool cg_exit(void) {
-    return JOY_exit() || game_view_key_pressed(INPUT_KEY_BACK);
-}
+static void cg_present(void) { u8g2_SendBuffer(cg_u8()); }
+static bool cg_exit(void) { return JOY_exit(); }
 
 static void cg_wait_release(void) {
     while (JOY_act_pressed() && !cg_exit()) {
@@ -125,11 +55,31 @@ static void cg_wait_release(void) {
     }
 }
 
+static void cg_u16(char *out, uint16_t value) {
+    char rev[6];
+    uint8_t n = 0;
+    do {
+        rev[n++] = (char)('0' + value % 10);
+        value /= 10;
+    } while (value && n < sizeof(rev));
+    for (uint8_t i = 0; i < n; i++) out[i] = rev[n - i - 1];
+    out[n] = 0;
+}
+
+static void cg_label_value(char *out, const char *label, uint16_t value, const char *suffix) {
+    uint8_t p = 0;
+    while (*label && p < 20) out[p++] = *label++;
+    cg_u16(out + p, value);
+    p = (uint8_t)strlen(out);
+    while (suffix && *suffix && p < 23) out[p++] = *suffix++;
+    out[p] = 0;
+}
+
 static void cg_splash(const char *title, const char *line) {
     cg_clear();
     cg_box(1, 1, 126, 62, false);
-    cg_text_center(12, title, 2);
-    if (line) cg_text_center(43, line, 1);
+    cg_text_center(13, title, 1);
+    if (line) cg_text_center(42, line, 1);
     cg_present();
 }
 
@@ -175,8 +125,8 @@ int cyber_snake_run(void) {
             if (sx[0] == sx[i] && sy[0] == sy[i]) dead = true;
 
         if (dead) {
-            char score_text[20];
-            snprintf(score_text, sizeof(score_text), "SCORE %u", score);
+            char score_text[24] = {0};
+            cg_label_value(score_text, "SCORE ", score, NULL);
             cg_splash("GAME OVER", score_text);
             while (!JOY_act_pressed()) {
                 if (cg_exit()) return 0;
@@ -212,7 +162,6 @@ int cyber_snake_run(void) {
 int cyber_pong_run(void) {
     int py = 24, ay = 24;
     int bx = 64, by = 32, vx = -1, vy = 1;
-    uint8_t player = 0, cpu = 0;
 
     cg_splash("PONG", "LEFT UP RIGHT DOWN");
     DLY_ms(700);
@@ -220,7 +169,6 @@ int cyber_pong_run(void) {
     while (!cg_exit()) {
         if (JOY_left_pressed() && py > 8) py -= 2;
         if (JOY_right_pressed() && py < 48) py += 2;
-
         if (ay + 6 < by && ay < 48) ay++;
         if (ay + 6 > by && ay > 8) ay--;
 
@@ -229,28 +177,25 @@ int cyber_pong_run(void) {
         if (by <= 9 || by >= 61) vy = -vy;
 
         if (bx <= 7 && by >= py && by <= py + 14) {
-            bx = 7; vx = 1;
+            bx = 7;
+            vx = 1;
             vy += (by - (py + 7)) / 4;
             if (vy > 2) vy = 2;
             if (vy < -2) vy = -2;
             if (vy == 0) vy = 1;
         }
         if (bx >= 120 && by >= ay && by <= ay + 14) {
-            bx = 120; vx = -1;
+            bx = 120;
+            vx = -1;
         }
-
-        if (bx < 0) { cpu++; bx = 64; by = 32; vx = 1; }
-        if (bx > 127) { player++; bx = 64; by = 32; vx = -1; }
+        if (bx < 0 || bx > 127) { bx = 64; by = 32; vx = -vx; }
 
         cg_clear();
-        cg_text(45, 0, "PONG", 1);
+        cg_text_center(0, "PONG", 1);
         for (int y = 9; y < 64; y += 5) cg_pixel(64, y, true);
         cg_box(3, py, 3, 15, true);
         cg_box(122, ay, 3, 15, true);
         cg_box(bx, by, 2, 2, true);
-        char s[16];
-        snprintf(s, sizeof(s), "%u-%u", player, cpu);
-        cg_text(3, 0, s, 1);
         cg_present();
 
         for (int t = 0; t < 2; t++) {
@@ -289,9 +234,9 @@ int cyber_dodge_run(void) {
                 score++;
             }
             if (obs_lane[i] == lane && obs_y[i] + 8 >= 52 && obs_y[i] <= 61) {
-                char s[20];
-                snprintf(s, sizeof(s), "SCORE %u", score);
-                cg_splash("CRASH", s);
+                char result[24] = {0};
+                cg_label_value(result, "SCORE ", score, NULL);
+                cg_splash("CRASH", result);
                 DLY_ms(1200);
                 return 0;
             }
@@ -299,13 +244,12 @@ int cyber_dodge_run(void) {
 
         cg_clear();
         cg_text(3, 0, "DODGE", 1);
-        cg_pixel(45, 8, true); cg_pixel(80, 8, true);
         for (int y = 8; y < 64; y += 4) {
-            cg_pixel(45, y, true); cg_pixel(80, y, true);
+            cg_pixel(45, y, true);
+            cg_pixel(80, y, true);
         }
         cg_box(lane_x[lane], 52, 8, 9, true);
-        for (int i = 0; i < 3; i++)
-            cg_box(lane_x[obs_lane[i]], obs_y[i], 8, 8, false);
+        for (int i = 0; i < 3; i++) cg_box(lane_x[obs_lane[i]], obs_y[i], 8, 8, false);
         cg_present();
 
         for (int t = 0; t < 5; t++) {
@@ -341,8 +285,8 @@ int cyber_reaction_run(void) {
         ticks++;
     }
 
-    char result[22];
-    snprintf(result, sizeof(result), "%u MS", ticks * 10);
+    char result[24] = {0};
+    cg_label_value(result, "", (uint16_t)(ticks * 10), " MS");
     cg_splash("REACTION", result);
     DLY_ms(1400);
     return 0;
@@ -358,10 +302,10 @@ int cyber_nba_soon_run(void) {
         if (by < 18 || by > 55) vy = -vy;
 
         cg_clear();
-        cg_text_center(1, "NBA 2K", 2);
-        cg_text_center(31, "COMING SOON", 1);
-        cg_text_center(43, "2 KB RAM", 1);
-        cg_text_center(53, "NO MICROTX", 1);
+        cg_text_center(1, "NBA 2K", 1);
+        cg_text_center(28, "COMING SOON", 1);
+        cg_text_center(40, "2 KB RAM", 1);
+        cg_text_center(51, "NO MICROTX", 1);
         cg_box(bx, by, 6, 6, false);
         cg_pixel(bx + 1, by + 3, true);
         cg_pixel(bx + 4, by + 3, true);
