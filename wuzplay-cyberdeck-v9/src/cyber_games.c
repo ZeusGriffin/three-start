@@ -75,6 +75,14 @@ static void cg_label_value(char *out, const char *label, uint16_t value, const c
     out[p] = 0;
 }
 
+static void cg_score_pair(char *out, uint16_t left, uint16_t right) {
+    cg_u16(out, left);
+    uint8_t p = (uint8_t)strlen(out);
+    if (p < 22) out[p++] = ':';
+    out[p] = 0;
+    cg_u16(out + p, right);
+}
+
 static void cg_splash(const char *title, const char *line) {
     cg_clear();
     cg_box(1, 1, 126, 62, false);
@@ -142,12 +150,15 @@ int cyber_snake_run(void) {
             food_y = JOY_random() % 10;
         }
 
+        char score_text[24] = {0};
+        cg_label_value(score_text, "S ", score, NULL);
         cg_clear();
         cg_box(2, 8, 122, 52, false);
         for (uint8_t i = 0; i < length; i++)
             cg_box(4 + sx[i] * 5, 10 + sy[i] * 5, 4, 4, true);
         cg_box(4 + food_x * 5, 10 + food_y * 5, 4, 4, false);
         cg_text(3, 0, "SNAKE", 1);
+        cg_text(86, 0, score_text, 1);
         cg_present();
 
         for (int t = 0; t < 12; t++) {
@@ -162,6 +173,7 @@ int cyber_snake_run(void) {
 int cyber_pong_run(void) {
     int py = 24, ay = 24;
     int bx = 64, by = 32, vx = -1, vy = 1;
+    uint16_t player_score = 0, cpu_score = 0;
 
     cg_splash("PONG", "LEFT UP RIGHT DOWN");
     DLY_ms(700);
@@ -188,10 +200,26 @@ int cyber_pong_run(void) {
             bx = 120;
             vx = -1;
         }
-        if (bx < 0 || bx > 127) { bx = 64; by = 32; vx = -vx; }
 
+        if (bx < 0) {
+            cpu_score++;
+            bx = 64;
+            by = 32;
+            vx = 1;
+            vy = (JOY_random() & 1) ? 1 : -1;
+        } else if (bx > 127) {
+            player_score++;
+            bx = 64;
+            by = 32;
+            vx = -1;
+            vy = (JOY_random() & 1) ? 1 : -1;
+        }
+
+        char score_text[24] = {0};
+        cg_score_pair(score_text, player_score, cpu_score);
         cg_clear();
-        cg_text_center(0, "PONG", 1);
+        cg_text(3, 0, "PONG", 1);
+        cg_text_center(0, score_text, 1);
         for (int y = 9; y < 64; y += 5) cg_pixel(64, y, true);
         cg_box(3, py, 3, 15, true);
         cg_box(122, ay, 3, 15, true);
@@ -242,8 +270,11 @@ int cyber_dodge_run(void) {
             }
         }
 
+        char score_text[24] = {0};
+        cg_label_value(score_text, "S ", score, NULL);
         cg_clear();
         cg_text(3, 0, "DODGE", 1);
+        cg_text(86, 0, score_text, 1);
         for (int y = 8; y < 64; y += 4) {
             cg_pixel(45, y, true);
             cg_pixel(80, y, true);
