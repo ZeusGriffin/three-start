@@ -22,11 +22,15 @@ Included firmware changes:
   Left x5 = prepare Find My Car NFC action
 
 PERMANENT SAFETY ESCAPE:
-- Press the physical Back button 15 times consecutively.
-- The Wuzplay immediately restarts in Nordic DFU mode.
+- Press the physical Back button 25 times consecutively.
+- The Wuzplay does NOT enter DFU immediately.
+- It asks: ENTER DFU?
+- Press Select for YES.
+- Press Back for NO / cancel.
+- Left or Right cannot confirm DFU.
 - This is designed to work from every responsive screen, not only Home.
-- Keep tapping after Back x5 prepares Govee; the emergency count continues to 15.
-- A different button or a pause longer than about 1.2 seconds resets the count.
+- Keep tapping after Back x5 prepares Govee; the emergency count continues to 25.
+- A different button or a pause longer than about 1.2 seconds before press 25 resets the count.
 
 IMPORTANT:
 The phone-action button sequences prepare the matching NFC action. When the screen says
@@ -38,6 +42,6 @@ Keep 01_INSTALL_WUZPLAY_CYBERDECK_V9_DFU_KEEP_ZIPPED.zip zipped and select it in
 Wuzplay Firmware Upgrade.
 
 Recovery:
-If normal Firmware Upgrade cannot be reached, press Back 15 times consecutively, wait
-for the device named pixl dfu to appear, then select it in the DFU app and upload the
-zipped installer.
+If normal Firmware Upgrade cannot be reached, press Back 25 times consecutively. When
+ENTER DFU? appears, press Select to confirm. Wait for the device named pixl dfu to appear,
+then select it in the DFU app and upload the zipped installer. Press Back at the prompt to cancel.
