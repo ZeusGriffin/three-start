@@ -1,19 +1,20 @@
-WUZPLAY CYBERDECK v9 — CUSTOM FIRMWARE BUILD
+WUZPLAY CYBERDECK v9.1 — CUSTOM FIRMWARE BUILD
 
 Target:
 - LCD Wuzplay/Pixl.js hardware
 - Source base: solosky/pixl.js commit 5cc2b49
-- Version value: 900
+- Version value: 901
 
 Included firmware changes:
+- LCD rotated 180 degrees to match the physical Wuzplay case orientation
 - Four-button map: Left, Select, Right, Back
 - Back input on GPIO 8 for the Wuzplay four-button shell
 - Animated game menu enabled
-- Snake
-- Pong
-- Breakout
-- Dodge
-- Reaction
+- Snake with visible live score and final score
+- Pong with player : CPU scoring for the full session
+- Breakout with visible score that increases for every brick
+- Dodge with visible live score and crash score
+- Reaction with reaction time used as the score
 - NBA 2K — Coming Soon joke screen
 - Home-screen shortcut sequences:
   Back x5 = prepare Govee On NFC action
@@ -38,7 +39,7 @@ TAP PHONE, touch the Wuzplay to the top of the iPhone. The Wuzplay cannot remote
 an iPhone app without the final NFC tap.
 
 Install:
-Keep 01_INSTALL_WUZPLAY_CYBERDECK_V9_DFU_KEEP_ZIPPED.zip zipped and select it in
+Keep 01_INSTALL_WUZPLAY_CYBERDECK_V9_1_ROT180_SCORE_DFU_KEEP_ZIPPED.zip zipped and select it in
 Wuzplay Firmware Upgrade.
 
 Recovery:
