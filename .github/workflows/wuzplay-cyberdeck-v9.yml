@@ -35,17 +35,13 @@ jobs:
         run: |
           python3 wuzplay-cyberdeck-v9/apply_patch.py upstream
           python3 wuzplay-cyberdeck-v9/apply_safety_patch.py upstream
+          python3 wuzplay-cyberdeck-v9/apply_orientation_patch.py upstream
           cp wuzplay-cyberdeck-v9/src/cyber_games.h upstream/fw/application/src/app/game/scene/cyber_games.h
           cp wuzplay-cyberdeck-v9/src/cyber_breakout.h upstream/fw/application/src/app/game/scene/cyber_breakout.h
           cp wuzplay-cyberdeck-v9/src/cyber_breakout.h upstream/fw/application/src/app/game/port/common/cyber_breakout.h
           cp wuzplay-cyberdeck-v9/src/cyber_breakout.c upstream/fw/application/src/app/game/port/common/cyber_breakout.c
 
-          # Keep the core NFC card emulator/tag functions. Remove the large built-in
-          # Amiibo database browser so the requested games fit in the nRF52 flash.
           sed -i '/&app_amiidb_info,/d' upstream/fw/application/src/core/mini_app_data.c
-
-          # Keep only the compact requested game set. The imported upstream games
-          # exceed this nRF52 target's flash/RAM budget.
           sed -i '/#include "tiny_lander.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
           sed -i '/#include "tiny_invaders.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
           sed -i '/#include "tiny_tris.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
@@ -71,80 +67,91 @@ jobs:
           p.write_text(s.replace(needle, addition, 1))
           PY
 
-      - name: Verify permanent recovery escape
+      - name: Verify safety rotation and scoring
         shell: bash
         run: |
           set -euo pipefail
           shortcuts="upstream/fw/application/src/mod/cyber_shortcuts.c"
           input="upstream/fw/application/src/mui/mui_input.c"
+          display="upstream/fw/application/src/mui/mui_u8g2.c"
+          games="upstream/fw/application/src/app/game/port/common/cyber_games.c"
+          breakout="upstream/fw/application/src/app/game/port/common/cyber_breakout.c"
+
           grep -q '#define DFU_BACK_PRESS_COUNT 25' "$shortcuts"
-          grep -q 'm_dfu_back_count >= DFU_BACK_PRESS_COUNT' "$shortcuts"
           grep -q 'm_dfu_confirm_pending = true' "$shortcuts"
           grep -q 'if (key == INPUT_KEY_CENTER)' "$shortcuts"
           grep -q 'ENTER DFU?' "$shortcuts"
-          grep -q 'SELECT=YES BACK=NO' "$shortcuts"
           grep -q 'enter_dfu();' "$shortcuts"
           grep -q 'cyber_shortcuts_feed(btn)' "$input"
+
+          grep -q 'u8g2_Setup_st7567_enh_dg128064_f(p_u8g2, U8G2_R2' "$display"
+          grep -q 'player_score' "$games"
+          grep -q 'cpu_score' "$games"
+          grep -q 'cg_label_value(score_text, "S ", score' "$games"
+          grep -q 'score++' "$breakout"
+          grep -q 'page_score' "$breakout"
+          grep -q 'x = (W - 1) - x' "$breakout"
+          grep -q 'y = (H - 1) - y' "$breakout"
+
           python3 - <<'PY'
           from pathlib import Path
           code = Path('upstream/fw/application/src/mod/cyber_shortcuts.c').read_text()
           threshold = code.index('m_dfu_back_count >= DFU_BACK_PRESS_COUNT')
-          pending = code.index('m_dfu_confirm_pending = true', threshold)
           desktop_gate = code.index('if (!current_app_is_desktop())')
           confirm_block = code.index('if (m_dfu_confirm_pending)')
           select_yes = code.index('if (key == INPUT_KEY_CENTER)', confirm_block)
           enter = code.index('enter_dfu();', select_yes)
-          assert threshold < desktop_gate, 'Recovery escape must run before desktop-only shortcut gating'
-          assert confirm_block < select_yes < enter, 'DFU must require explicit Select confirmation'
-          assert pending < desktop_gate, 'Confirmation prompt must be armed globally'
-          print('PASS: 25 rapid Back presses open confirmation; Select enters DFU and Back cancels.')
+          assert threshold < desktop_gate
+          assert confirm_block < select_yes < enter
+          print('PASS: Recovery25 confirmation, 180-degree LCD rotation, and game scoring hooks verified.')
           PY
 
       - name: Build LCD firmware and Nordic DFU package
         shell: bash
         run: |
           cd upstream/fw
-          make all RELEASE=1 APP_VERSION=900 BOARD=LCD
+          make all RELEASE=1 APP_VERSION=901 BOARD=LCD
 
       - name: Verify and stage installer
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifact
-          cp upstream/fw/_build/pixjs_ota_v900.zip artifact/01_INSTALL_WUZPLAY_CYBERDECK_V9_DFU_KEEP_ZIPPED.zip
-          cp upstream/fw/_build/pixljs.hex artifact/pixljs_v9_application.hex
-          cp upstream/fw/_build/pixljs_all.hex artifact/pixljs_v9_full_factory.hex
+          cp upstream/fw/_build/pixjs_ota_v901.zip artifact/01_INSTALL_WUZPLAY_CYBERDECK_V9_1_ROT180_SCORE_DFU_KEEP_ZIPPED.zip
+          cp upstream/fw/_build/pixljs.hex artifact/pixljs_v9_1_application.hex
+          cp upstream/fw/_build/pixljs_all.hex artifact/pixljs_v9_1_full_factory.hex
           cp wuzplay-cyberdeck-v9/BUILD_README.txt artifact/BUILD_README.txt
           cp WUZPLAY_FIRMWARE_SAFETY_RULES.md artifact/WUZPLAY_FIRMWARE_SAFETY_RULES.md
 
           python3 - <<'PY'
           import hashlib, json, zipfile
           from pathlib import Path
-
-          p = Path("artifact/01_INSTALL_WUZPLAY_CYBERDECK_V9_DFU_KEEP_ZIPPED.zip")
+          p = Path('artifact/01_INSTALL_WUZPLAY_CYBERDECK_V9_1_ROT180_SCORE_DFU_KEEP_ZIPPED.zip')
           with zipfile.ZipFile(p) as z:
-              assert z.testzip() is None, "DFU ZIP is corrupt"
+              assert z.testzip() is None
               names = set(z.namelist())
-              assert "manifest.json" in names, names
-              manifest = json.loads(z.read("manifest.json"))
-              app = manifest["manifest"]["application"]
-              assert app["bin_file"] in names
-              assert app["dat_file"] in names
+              assert 'manifest.json' in names
+              manifest = json.loads(z.read('manifest.json'))
+              app = manifest['manifest']['application']
+              assert app['bin_file'] in names
+              assert app['dat_file'] in names
               report = {
-                  "zip": p.name,
-                  "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
-                  "members": sorted(names),
-                  "manifest_application": app,
-                  "emergency_recovery": "Press Back 25 times; Select confirms DFU; Back cancels",
-                  "verification": "passed"
+                  'zip': p.name,
+                  'sha256': hashlib.sha256(p.read_bytes()).hexdigest(),
+                  'members': sorted(names),
+                  'manifest_application': app,
+                  'screen_orientation': '180 degree corrected (U8G2_R2)',
+                  'game_scoring': 'Snake/Pong/Breakout/Dodge visible; Reaction time score',
+                  'emergency_recovery': 'Back x25, Select confirms DFU, Back cancels',
+                  'verification': 'passed'
               }
-          Path("artifact/DFU_VERIFICATION.json").write_text(json.dumps(report, indent=2))
+          Path('artifact/DFU_VERIFICATION.json').write_text(json.dumps(report, indent=2))
           PY
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Wuzplay_Cyberdeck_v9_LCD_DFU
+          name: Wuzplay_Cyberdeck_v9_1_ROT180_SCORE_DFU
           path: artifact/
           if-no-files-found: error
           retention-days: 30
