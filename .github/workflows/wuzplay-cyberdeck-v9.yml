@@ -77,17 +77,27 @@ jobs:
           set -euo pipefail
           shortcuts="upstream/fw/application/src/mod/cyber_shortcuts.c"
           input="upstream/fw/application/src/mui/mui_input.c"
-          grep -q '#define DFU_BACK_PRESS_COUNT 15' "$shortcuts"
+          grep -q '#define DFU_BACK_PRESS_COUNT 25' "$shortcuts"
           grep -q 'm_dfu_back_count >= DFU_BACK_PRESS_COUNT' "$shortcuts"
+          grep -q 'm_dfu_confirm_pending = true' "$shortcuts"
+          grep -q 'if (key == INPUT_KEY_CENTER)' "$shortcuts"
+          grep -q 'ENTER DFU?' "$shortcuts"
+          grep -q 'SELECT=YES BACK=NO' "$shortcuts"
           grep -q 'enter_dfu();' "$shortcuts"
           grep -q 'cyber_shortcuts_feed(btn)' "$input"
           python3 - <<'PY'
           from pathlib import Path
           code = Path('upstream/fw/application/src/mod/cyber_shortcuts.c').read_text()
-          global_escape = code.index('m_dfu_back_count >= DFU_BACK_PRESS_COUNT')
+          threshold = code.index('m_dfu_back_count >= DFU_BACK_PRESS_COUNT')
+          pending = code.index('m_dfu_confirm_pending = true', threshold)
           desktop_gate = code.index('if (!current_app_is_desktop())')
-          assert global_escape < desktop_gate, 'DFU escape must run before desktop-only shortcut gating'
-          print('PASS: 15 rapid Back presses force Nordic DFU from any responsive screen.')
+          confirm_block = code.index('if (m_dfu_confirm_pending)')
+          select_yes = code.index('if (key == INPUT_KEY_CENTER)', confirm_block)
+          enter = code.index('enter_dfu();', select_yes)
+          assert threshold < desktop_gate, 'Recovery escape must run before desktop-only shortcut gating'
+          assert confirm_block < select_yes < enter, 'DFU must require explicit Select confirmation'
+          assert pending < desktop_gate, 'Confirmation prompt must be armed globally'
+          print('PASS: 25 rapid Back presses open confirmation; Select enters DFU and Back cancels.')
           PY
 
       - name: Build LCD firmware and Nordic DFU package
@@ -125,7 +135,7 @@ jobs:
                   "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
                   "members": sorted(names),
                   "manifest_application": app,
-                  "emergency_recovery": "Press Back 15 times consecutively to enter Nordic DFU",
+                  "emergency_recovery": "Press Back 25 times; Select confirms DFU; Back cancels",
                   "verification": "passed"
               }
           Path("artifact/DFU_VERIFICATION.json").write_text(json.dumps(report, indent=2))
