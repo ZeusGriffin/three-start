@@ -23,11 +23,12 @@ old = '''        if (btn == INPUT_KEY_BACK) {
 
 new = '''        if (btn == INPUT_KEY_BACK) {
             /* Feed Back globally before navigation. This keeps the permanent
-               15-press emergency DFU escape available from every screen. */
+               25-press recovery sequence available from every screen. After
+               press 25, cyber_shortcuts waits for Select=Yes or Back=No. */
             if (cyber_shortcuts_feed(btn)) break;
 
             if (current_id == MINI_APP_ID_DESKTOP) {
-                /* Home consumes Back for shortcut and emergency sequences. */
+                /* Home consumes Back for shortcut and recovery sequences. */
             } else if (current_id == MINI_APP_ID_GAME && game_view_is_running()) {
                 game_view_request_exit();
             } else {
@@ -43,4 +44,4 @@ if old not in text:
     raise SystemExit("Expected Back-button routing block was not found")
 
 path.write_text(text.replace(old, new, 1))
-print("Permanent 15-Back DFU safety routing applied.")
+print("Permanent 25-Back DFU safety routing with confirmation applied.")
