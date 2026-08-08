@@ -13,12 +13,13 @@
 
 #define SHORTCUT_WINDOW_MS 1200
 #define SHORTCUT_BUFFER_SIZE 8
-#define DFU_BACK_PRESS_COUNT 15
+#define DFU_BACK_PRESS_COUNT 25
 #define TOAST_VIEW_ID 0
 
 static uint8_t m_keys[SHORTCUT_BUFFER_SIZE];
 static uint8_t m_key_count = 0;
 static uint8_t m_dfu_back_count = 0;
+static bool m_dfu_confirm_pending = false;
 static bool m_initialized = false;
 static mui_toast_view_t *m_toast = NULL;
 static mui_view_dispatcher_t *m_toast_dispatcher = NULL;
@@ -43,6 +44,7 @@ static void shortcut_timer_handler(void *context) {
 void cyber_shortcuts_reset(void) {
     reset_shortcut_pattern();
     m_dfu_back_count = 0;
+    m_dfu_confirm_pending = false;
 }
 
 static bool suffix_matches(const uint8_t *pattern, uint8_t pattern_len) {
@@ -120,9 +122,34 @@ void cyber_shortcuts_init(void) {
 bool cyber_shortcuts_feed(uint8_t key) {
     if (!m_initialized) cyber_shortcuts_init();
 
-    /* Permanent recovery escape: fifteen consecutive Back presses are counted
-       globally, even while an app or game is open. Any different key or a pause
-       longer than the shortcut window resets the count. */
+    /* After the 25-Back recovery sequence, require an explicit confirmation.
+       Select confirms DFU; Back cancels. Other keys are ignored while the
+       confirmation prompt is active so DFU cannot be entered accidentally. */
+    if (m_dfu_confirm_pending) {
+        if (key == INPUT_KEY_CENTER) {
+            m_dfu_confirm_pending = false;
+            m_dfu_back_count = 0;
+            reset_shortcut_pattern();
+            if (m_toast) mui_toast_view_show(m_toast, "ENTERING DFU");
+            enter_dfu();
+            return true;
+        }
+
+        if (key == INPUT_KEY_BACK) {
+            m_dfu_confirm_pending = false;
+            m_dfu_back_count = 0;
+            reset_shortcut_pattern();
+            if (m_toast) mui_toast_view_show(m_toast, "DFU CANCELLED");
+            return true;
+        }
+
+        if (m_toast) mui_toast_view_show(m_toast, "ENTER DFU?\nSELECT=YES BACK=NO");
+        return true;
+    }
+
+    /* Permanent recovery escape: twenty-five consecutive Back presses are
+       counted globally, even while an app or game is open. Any different key
+       or a pause longer than the shortcut window resets the count. */
     if (key == INPUT_KEY_BACK) {
         if (m_dfu_back_count < DFU_BACK_PRESS_COUNT) m_dfu_back_count++;
     } else {
@@ -138,8 +165,12 @@ bool cyber_shortcuts_feed(uint8_t key) {
     APP_ERROR_CHECK(err);
 
     if (m_dfu_back_count >= DFU_BACK_PRESS_COUNT) {
-        /* enter_dfu writes the Nordic bootloader flag and resets immediately. */
-        enter_dfu();
+        /* Stop the rapid-press timeout and wait for a deliberate Yes/No choice. */
+        app_timer_stop(m_shortcut_reset_timer);
+        m_dfu_confirm_pending = true;
+        m_dfu_back_count = 0;
+        reset_shortcut_pattern();
+        if (m_toast) mui_toast_view_show(m_toast, "ENTER DFU?\nSELECT=YES BACK=NO");
         return true;
     }
 
@@ -183,7 +214,8 @@ bool cyber_shortcuts_feed(uint8_t key) {
             "GOVEE READY\nTAP PHONE",
             "shortcuts://run-shortcut?name=Govee%20On"
         );
-        /* Preserve the emergency Back count so continuing to 15 still enters DFU. */
+        /* Preserve the emergency Back count so continuing to 25 still reaches
+           the DFU confirmation prompt. */
         reset_shortcut_pattern();
         return true;
     }
