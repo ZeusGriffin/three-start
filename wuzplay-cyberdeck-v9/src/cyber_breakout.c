@@ -13,8 +13,12 @@
 #define BRICK_COLS 8
 #define BRICK_ROWS 3
 
+/* Breakout writes pages directly instead of using u8g2, so rotate its logical
+   pixels here to match the main firmware's corrected 180-degree LCD layout. */
 static void page_pixel(uint8_t *line, uint8_t page, int x, int y) {
     if (x < 0 || x >= W || y < 0 || y >= H) return;
+    x = (W - 1) - x;
+    y = (H - 1) - y;
     if ((y >> 3) != page) return;
     line[x] |= (uint8_t)(1u << (y & 7));
 }
@@ -28,7 +32,37 @@ static void page_box(uint8_t *line, uint8_t page, int x, int y, int w, int h, bo
     }
 }
 
-static void render(int paddle_x, int ball_x, int ball_y, const uint8_t bricks[BRICK_ROWS]) {
+static const uint8_t digit_rows[10][5] = {
+    {7,5,5,5,7}, {2,6,2,2,7}, {7,1,7,4,7}, {7,1,7,1,7}, {5,5,7,1,1},
+    {7,4,7,1,7}, {7,4,7,5,7}, {7,1,1,1,1}, {7,5,7,5,7}, {7,5,7,1,7}
+};
+
+static void page_digit(uint8_t *line, uint8_t page, int x, int y, uint8_t digit) {
+    if (digit > 9) digit = 0;
+    for (uint8_t row = 0; row < 5; row++) {
+        for (uint8_t col = 0; col < 3; col++) {
+            if (digit_rows[digit][row] & (1u << (2 - col)))
+                page_pixel(line, page, x + col, y + row);
+        }
+    }
+}
+
+static void page_score(uint8_t *line, uint8_t page, uint16_t score) {
+    uint8_t digits[5];
+    uint8_t count = 0;
+    do {
+        digits[count++] = (uint8_t)(score % 10);
+        score /= 10;
+    } while (score && count < 5);
+
+    int x = 123 - (int)(count * 4);
+    for (int i = count - 1; i >= 0; i--) {
+        page_digit(line, page, x, 1, digits[i]);
+        x += 4;
+    }
+}
+
+static void render(int paddle_x, int ball_x, int ball_y, const uint8_t bricks[BRICK_ROWS], uint16_t score) {
     uint8_t line[W];
     for (uint8_t page = 0; page < 8; page++) {
         memset(line, 0, sizeof(line));
@@ -41,6 +75,8 @@ static void render(int paddle_x, int ball_x, int ball_y, const uint8_t bricks[BR
             page_pixel(line, page, 0, y);
             page_pixel(line, page, W - 1, y);
         }
+
+        page_score(line, page, score);
 
         for (uint8_t row = 0; row < BRICK_ROWS; row++) {
             for (uint8_t col = 0; col < BRICK_COLS; col++) {
@@ -69,6 +105,7 @@ int cyber_breakout_run(void) {
     int ball_y = 46;
     int vx = 1;
     int vy = -1;
+    uint16_t score = 0;
     uint8_t bricks[BRICK_ROWS];
     reset_bricks(bricks);
 
@@ -106,6 +143,7 @@ int cyber_breakout_run(void) {
                 uint8_t mask = (uint8_t)(1u << col);
                 if (bricks[row] & mask) {
                     bricks[row] &= (uint8_t)~mask;
+                    score++;
                     vy = -vy;
                 }
             }
@@ -113,7 +151,7 @@ int cyber_breakout_run(void) {
 
         if ((bricks[0] | bricks[1] | bricks[2]) == 0) reset_bricks(bricks);
 
-        render(paddle_x, ball_x, ball_y, bricks);
+        render(paddle_x, ball_x, ball_y, bricks, score);
         for (uint8_t i = 0; i < 3; i++) {
             if (JOY_exit()) return 0;
             JOY_idle();
