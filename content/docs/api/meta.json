@@ -1,5 +1,0 @@
-{
-  "title": "API Reference",
-  "pages": ["three-start", "three-context", "object3d-behaviour", "context-module", "typed-emitter", "operations"],
-  "defaultOpen": true
-}
