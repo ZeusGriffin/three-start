@@ -1,0 +1,157 @@
+name: Build Wuzplay Cyberdeck v9
+
+on:
+  push:
+    branches: ["wuzplay-cyberdeck-v9"]
+    paths:
+      - ".github/workflows/wuzplay-cyberdeck-v9.yml"
+      - "wuzplay-cyberdeck-v9/**"
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-lcd-dfu:
+    runs-on: ubuntu-latest
+    container: solosky/nrf52-sdk:latest
+
+    steps:
+      - name: Check out build recipe
+        uses: actions/checkout@v4
+
+      - name: Clone matching Pixl.js firmware source
+        shell: bash
+        run: |
+          git clone https://github.com/solosky/pixl.js.git upstream
+          cd upstream
+          git checkout 5cc2b49
+          git submodule update --init --recursive
+
+      - name: Apply Wuzplay Cyberdeck v9 patch
+        shell: bash
+        run: |
+          python3 wuzplay-cyberdeck-v9/apply_patch.py upstream
+          python3 wuzplay-cyberdeck-v9/apply_safety_patch.py upstream
+          python3 wuzplay-cyberdeck-v9/apply_orientation_patch.py upstream
+          cp wuzplay-cyberdeck-v9/src/cyber_games.h upstream/fw/application/src/app/game/scene/cyber_games.h
+          cp wuzplay-cyberdeck-v9/src/cyber_breakout.h upstream/fw/application/src/app/game/scene/cyber_breakout.h
+          cp wuzplay-cyberdeck-v9/src/cyber_breakout.h upstream/fw/application/src/app/game/port/common/cyber_breakout.h
+          cp wuzplay-cyberdeck-v9/src/cyber_breakout.c upstream/fw/application/src/app/game/port/common/cyber_breakout.c
+
+          sed -i '/&app_amiidb_info,/d' upstream/fw/application/src/core/mini_app_data.c
+          sed -i '/#include "tiny_lander.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/#include "tiny_invaders.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/#include "tiny_tris.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/#include "tiny_arkanoid.h"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/#include "cyber_games.h"/a #include "cyber_breakout.h"' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/SPACE RAID/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/"LANDER"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/"BLOCKS"/d' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i 's/tiny_arkanoid_run/cyber_breakout_run/' upstream/fw/application/src/app/game/scene/game_scene_game_list.c
+          sed -i '/tiny_lander\/tiny_lander.c/d' upstream/fw/application/Makefile
+          sed -i '/tiny_invaders\/tiny_invaders.c/d' upstream/fw/application/Makefile
+          sed -i '/tiny_tris\/tiny_tris.c/d' upstream/fw/application/Makefile
+          sed -i '/tiny_arkanoid\/tiny_arkanoid.c/d' upstream/fw/application/Makefile
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('upstream/fw/application/Makefile')
+          s = p.read_text()
+          needle = '  $(PROJ_DIR)/app/game/port/common/cyber_games.c \\\n'
+          addition = needle + '  $(PROJ_DIR)/app/game/port/common/cyber_breakout.c \\\n'
+          if needle not in s:
+              raise SystemExit('cyber_games.c Makefile entry not found')
+          p.write_text(s.replace(needle, addition, 1))
+          PY
+
+      - name: Verify safety rotation and scoring
+        shell: bash
+        run: |
+          set -euo pipefail
+          shortcuts="upstream/fw/application/src/mod/cyber_shortcuts.c"
+          input="upstream/fw/application/src/mui/mui_input.c"
+          display="upstream/fw/application/src/mui/mui_u8g2.c"
+          games="upstream/fw/application/src/app/game/port/common/cyber_games.c"
+          breakout="upstream/fw/application/src/app/game/port/common/cyber_breakout.c"
+
+          grep -q '#define DFU_BACK_PRESS_COUNT 25' "$shortcuts"
+          grep -q 'm_dfu_confirm_pending = true' "$shortcuts"
+          grep -q 'if (key == INPUT_KEY_CENTER)' "$shortcuts"
+          grep -q 'ENTER DFU?' "$shortcuts"
+          grep -q 'enter_dfu();' "$shortcuts"
+          grep -q 'cyber_shortcuts_feed(btn)' "$input"
+
+          grep -q 'u8g2_Setup_st7567_enh_dg128064_f(p_u8g2, U8G2_R2' "$display"
+          grep -q 'player_score' "$games"
+          grep -q 'cpu_score' "$games"
+          grep -q 'cg_label_value(score_text, "S ", score' "$games"
+          grep -q 'score++' "$breakout"
+          grep -q 'page_score' "$breakout"
+          grep -q 'x = (W - 1) - x' "$breakout"
+          grep -q 'y = (H - 1) - y' "$breakout"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          code = Path('upstream/fw/application/src/mod/cyber_shortcuts.c').read_text()
+          threshold = code.index('m_dfu_back_count >= DFU_BACK_PRESS_COUNT')
+          desktop_gate = code.index('if (!current_app_is_desktop())')
+          confirm_block = code.index('if (m_dfu_confirm_pending)')
+          select_yes = code.index('if (key == INPUT_KEY_CENTER)', confirm_block)
+          enter = code.index('enter_dfu();', select_yes)
+          assert threshold < desktop_gate
+          assert confirm_block < select_yes < enter
+          print('PASS: Recovery25 confirmation, 180-degree LCD rotation, and game scoring hooks verified.')
+          PY
+
+      - name: Build LCD firmware and Nordic DFU package
+        shell: bash
+        run: |
+          cd upstream/fw
+          make all RELEASE=1 APP_VERSION=901 BOARD=LCD
+
+      - name: Verify and stage installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact
+          cp upstream/fw/_build/pixjs_ota_v901.zip artifact/01_INSTALL_WUZPLAY_CYBERDECK_V9_1_ROT180_SCORE_DFU_KEEP_ZIPPED.zip
+          cp upstream/fw/_build/pixljs.hex artifact/pixljs_v9_1_application.hex
+          cp upstream/fw/_build/pixljs_all.hex artifact/pixljs_v9_1_full_factory.hex
+          cp wuzplay-cyberdeck-v9/BUILD_README.txt artifact/BUILD_README.txt
+          cp WUZPLAY_FIRMWARE_SAFETY_RULES.md artifact/WUZPLAY_FIRMWARE_SAFETY_RULES.md
+
+          python3 - <<'PY'
+          import hashlib, json, zipfile
+          from pathlib import Path
+          p = Path('artifact/01_INSTALL_WUZPLAY_CYBERDECK_V9_1_ROT180_SCORE_DFU_KEEP_ZIPPED.zip')
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names = set(z.namelist())
+              assert 'manifest.json' in names
+              manifest = json.loads(z.read('manifest.json'))
+              app = manifest['manifest']['application']
+              assert app['bin_file'] in names
+              assert app['dat_file'] in names
+              report = {
+                  'zip': p.name,
+                  'sha256': hashlib.sha256(p.read_bytes()).hexdigest(),
+                  'members': sorted(names),
+                  'manifest_application': app,
+                  'screen_orientation': '180 degree corrected (U8G2_R2)',
+                  'game_scoring': 'Snake/Pong/Breakout/Dodge visible; Reaction time score',
+                  'emergency_recovery': 'Back x25, Select confirms DFU, Back cancels',
+                  'verification': 'passed'
+              }
+          Path('artifact/DFU_VERIFICATION.json').write_text(json.dumps(report, indent=2))
+          PY
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wuzplay_Cyberdeck_v9_1_ROT180_SCORE_DFU
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 30
